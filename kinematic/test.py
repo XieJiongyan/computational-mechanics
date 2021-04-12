@@ -1,15 +1,16 @@
 if __name__ == '__main__':
-    import kinematics as k 
+    import kinematics
     import math
-    k.read_data_from_csv("hw2_constraints.csv")
-    k.read_initial_from_csv("hw2_IC.csv")
+    k = kinematics.kinematic_model()
+    k.read_data_from_csv("kinematic/hw2_constraints.csv")
+    k.read_initial_from_csv("kinematic/hw2_IC.csv")
     Z = k.directly_solve()
     print(Z)
     
-    draw = k.draw()
+    draw = kinematics.draw()
     # draw.add_rectangle([1, 1], 5, 5)
 
-    NOT_PLOT_IMAGE = False
+    NOT_PLOT_IMAGE = True
     if NOT_PLOT_IMAGE:
         exit()
     import imageio
@@ -40,9 +41,9 @@ if __name__ == '__main__':
         draw.add_hinge(0 + 4 * math.cos(phi1), -2 + 4 * math.sin(phi1))
         draw.xlim([-4, 3])
         draw.ylim([-4, 3])
-        draw.savefig('test.png')
-        gif_images.append(imageio.imread('test.png'))
+        draw.savefig('kinematic/test.png')
+        gif_images.append(imageio.imread('kinematic/test.png'))
         draw.cla()
-    imageio.mimsave('test2.gif', gif_images, fps= 15)
+    imageio.mimsave('kinematic/test2.gif', gif_images, fps= 15)
         
 
