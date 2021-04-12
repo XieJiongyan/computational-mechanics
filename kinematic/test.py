@@ -1,11 +1,18 @@
 if __name__ == '__main__':
     import kinematics
     import math
-    k = kinematics.kinematic_model()
-    k.read_data_from_csv("kinematic/hw2_constraints.csv")
-    k.read_initial_from_csv("kinematic/hw2_IC.csv")
-    Z = k.directly_solve()
-    print(Z)
+
+    k1 = kinematics.kinematic_model()
+    k1.read_data_from_csv("kinematic/hw1_constraints.csv")
+    k1.read_initial_from_csv("kinematic/hw1_IC.csv")
+    Z2 = k1.directly_solve()
+    print(Z2)
+
+    k2 = kinematics.kinematic_model()
+    k2.read_data_from_csv("kinematic/hw2_constraints.csv")
+    k2.read_initial_from_csv("kinematic/hw2_IC.csv")
+    Z2 = k2.directly_solve()
+    print(Z2)
     
     draw = kinematics.draw()
     # draw.add_rectangle([1, 1], 5, 5)

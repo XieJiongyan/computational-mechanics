@@ -45,6 +45,18 @@ class draw:
     def savefig(self, filename):
         plt.savefig(filename)
 
+def As(phii, si):
+    Ai = np.matrix([[math.cos(phii), -math.sin(phii)], [math.sin(phii), math.cos(phii)]]) 
+    si = si.split(' ')
+    si = np.matrix([float(x) for x in si]).T 
+    return Ai * si #返回列向量
+
+def R():
+    return np.matrix([[0, -1], [1, 0]]) 
+
+def Bs(phii, si):
+    return R() * As(phii, si) 
+
 class kinematic_model:
     def __init__(self):
         self.n = 0
@@ -182,11 +194,59 @@ class kinematic_model:
         for index, row in constraints.iterrows():
             Phi_q = np.vstack([Phi_q, self.cal_fq_row(q, t, row)])
         return Phi_q
+    def cal_gamma_row(self, q, dq, t, row):
+        kind = row['kind']
+        i = row['i']
+        j = row['j']
+        si = row['si']
+        sj = row['sj']
+        vi, vj = row['vi'], row['vj']
+        c = row['c']
+
+        xi = q[i * 3]
+        yi = q[i * 3 + 1]
+        phii = q[i * 3 + 2]
+        dphii = dq[i * 3 + 2]
+        ri = np.matrix([xi, yi]).reshape([2, 1])
+        dxi = dq[i * 3]
+        dyi = dq[i * 3 + 1]
+        dri = np.matrix([[dxi, dyi]]).T
+        if j == j:
+            j = int(j)
+            xj = q[j * 3]
+            yj = q[j * 3 + 1]
+            rj = np.matrix([xj, yj]).reshape([2, 1]) #列向量
+            phij = q[j * 3 + 2]
+            dphij = dq[j * 3 + 2]
+            dxj = dq[j * 3]
+            dyj = dq[j * 3 + 1]
+            drj = np.matrix([[dxj, dyj]]).T
+        if kind == 'aphid':
+            c = str(row['c']).replace("pi", "np.pi").replace('^', '**')
+            return eval(c)
+        elif kind == 'ax':
+            return (As(phii, si) * dphii ** 2)[0, 0]
+        elif kind == 'ay':
+            return (As(phii, si) * dphii ** 2)[1, 0]
+        elif kind == 'r':
+            return np.array(As(phij, sj) * dphij ** 2 - As(phii, si) * dphii ** 2).flatten()
+        elif kind == 't':
+            print(rj)
+            t1 = dphii ** 2 * Bs(phii, vi).T * (rj - ri) + 2 * dphii * As(phii, vi).T * (drj - dri)
+            return np.array([t1, 0])
+        else:
+            return 0
+    def cal_gamma(self, q, dq, t):
+        gamma = np.empty([])
+        for index, row in self.constraints.iterrows():
+            gamma = np.hstack([gamma, self.cal_gamma_row(q, dq, t, row)])
+        return np.matrix(gamma).T 
     def directly_solve(self):
         t0 = 0
         te = 2
         num = 50
         ts = np.linspace(t0, te, num + 1)
+        dt = ts[1] - ts[0]
         q = [float(x) for x in self.initial_condition]
         n = len(q)
         constraints = self.constraints
@@ -205,11 +265,13 @@ class kinematic_model:
                 dq = - npl.inv(Phi_q) * Phi 
                 q = np.array(q).reshape(n, 1)
                 # print(q, dq)
+                # print(np.array(dq).flatten())
+                gamma = self.cal_gamma(q, np.array(dq).flatten(), t)
                 q += dq
                 q = q.flatten().tolist()
                 i += 1 
                 # print('times: ', t, i, self.cal_Phi(q, t, constraints), Phi_q, dq, q)
-                if i == 10:
+                if i == 100:
                     print('Improper initial value, i >= maxi')
                     print(t)
                     return Z
@@ -238,17 +300,6 @@ def read_initial_from_csv(filename):
     initial_condition = df.values.flatten()
     # print(initial_condition)
 
-def As(phii, si):
-    Ai = np.matrix([[math.cos(phii), -math.sin(phii)], [math.sin(phii), math.cos(phii)]]) 
-    si = si.split(' ')
-    si = np.matrix([float(x) for x in si]).T 
-    return Ai * si #返回列向量
-
-def R():
-    return np.matrix([[0, -1], [1, 0]]) 
-
-def Bs(phii, si):
-    return R() * As(phii, si) 
 
 def cal_Phi_row(q, t, row):
     kind = row['kind']
