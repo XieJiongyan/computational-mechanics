@@ -102,6 +102,7 @@ class kinematic_model:
             phij = q[j * 3 + 2]
         if kind == 'aphid':
             c = str(row['c']).replace("pi", "np.pi").replace('^', '**')
+            # print('kind 105:', c, phii - eval(c), phii, q)
             return phii - eval(c)
         elif kind == 'ax':
             c = float(c)
@@ -130,6 +131,7 @@ class kinematic_model:
         Phi = np.array([])
         for index, row in constraints.iterrows():
             i, j = row['i'], row['j']
+            # print('134:', self.cal_Phi_row(q, t, row))
             Phi = np.hstack([Phi, self.cal_Phi_row(q, t, row)])
         return np.matrix(Phi).T # 返回一个列向量
     def cal_fq_row(self, q, t, row):
@@ -222,7 +224,8 @@ class kinematic_model:
             dyj = dq[j * 3 + 1]
             drj = np.matrix([[dxj, dyj]]).T
         if kind == 'aphid':
-            c = str(row['c']).replace("pi", "np.pi").replace('^', '**')
+            c = str(row["c''"]).replace("pi", "np.pi").replace('^', '**')
+            # print(eval(c))
             return eval(c)
         elif kind == 'ax':
             return (As(phii, si) * dphii ** 2)[0, 0]
@@ -232,28 +235,48 @@ class kinematic_model:
             return np.array(As(phij, sj) * dphij ** 2 - As(phii, si) * dphii ** 2).flatten()
         elif kind == 't':
             print(rj)
-            t1 = dphii ** 2 * Bs(phii, vi).T * (rj - ri) + 2 * dphii * As(phii, vi).T * (drj - dri)
+            t1 = (dphii ** 2 * Bs(phii, vi).T * (rj - ri) + 2 * dphii * As(phii, vi).T * (drj - dri))[0, 0]
             return np.array([t1, 0])
         else:
             return 0
     def cal_gamma(self, q, dq, t):
-        gamma = np.empty([])
+        gamma = np.array([])
+        # print('origin', gamma)
         for index, row in self.constraints.iterrows():
+            # print('1', gamma)
             gamma = np.hstack([gamma, self.cal_gamma_row(q, dq, t, row)])
-        return np.matrix(gamma).T 
-    def directly_solve(self):
-        t0 = 0
-        te = 2
-        num = 50
-        ts = np.linspace(t0, te, num + 1)
+            # print(gamma)
+        return np.matrix(gamma).T # 返回列向量
+    def cal_v_row(self, q, t, row):
+        kind = row['kind']
+        if kind == 'aphid':
+            c = str(row["c'"]).replace("pi", "np.pi").replace('^', '**')
+            # print(eval(c))
+            return eval(c)
+        elif kind == 'r':
+            return [0, 0]
+        elif kind == 't':
+            return [0, 0]
+        else:
+            return 0
+    def cal_v(self, q, t):
+        v = np.array([])
+        for index, row in self.constraints.iterrows():
+            v = np.hstack([v, self.cal_v_row(q, t, row)])
+        return np.matrix(v).T
+    # Return [phi, phi, a]
+    def directly_solve(self, ts):
         dt = ts[1] - ts[0]
         q = [float(x) for x in self.initial_condition]
         n = len(q)
         constraints = self.constraints
         if n != self.n:
             print('n is wrong')
-        Z = np.zeros([num + 1, n])
+        Z = np.zeros([ts.shape[0], n * 3])
         for it, t in enumerate(ts):
+            print(it, q)
+            Phi = self.cal_Phi(q, t, constraints)
+            Phi_q = self.cal_fq(q, t, constraints)
             i = 1
             while npl.norm(self.cal_Phi(q, t, constraints)) > 1e-6:
                 Phi = self.cal_Phi(q, t, constraints)
@@ -262,20 +285,34 @@ class kinematic_model:
                     print('Improper initial value')
                     print(Phi_q) 
                     print(npl.det(Phi_q)) 
-                dq = - npl.inv(Phi_q) * Phi 
-                q = np.array(q).reshape(n, 1)
-                # print(q, dq)
-                # print(np.array(dq).flatten())
-                gamma = self.cal_gamma(q, np.array(dq).flatten(), t)
-                q += dq
-                q = q.flatten().tolist()
+                q = np.matrix(np.array(q).reshape([n, 1]))
+                q -= npl.inv(Phi_q) * Phi 
+                q = np.array(q).reshape(n, 1).flatten().tolist()
+                # print('291:', q)
                 i += 1 
-                # print('times: ', t, i, self.cal_Phi(q, t, constraints), Phi_q, dq, q)
                 if i == 100:
                     print('Improper initial value, i >= maxi')
                     print(t)
                     return Z
-            Z[it, :] = np.array(q)
+
+            dq = - npl.inv(Phi_q) * self.cal_v(q, t) 
+            q = np.array(q).reshape(n, 1)
+            # print(q, dq)
+            # print(np.array(dq).flatten())
+            gamma = self.cal_gamma(q, np.array(dq).flatten(), t)
+            # print(gamma)
+            ddq = npl.inv(Phi_q) * gamma
+            q = np.matrix(q)
+            # print('q: ', q)
+            # print('dq * dt: ', dq * dt)
+            # print('0.5 * dt ** 2 * ddq :', 0.5 * dt ** 2 * ddq )
+            q += dq * dt + 0.5 * dt ** 2 * ddq 
+            q = np.array(q).reshape(n, 1).flatten().tolist()
+            # print('q:', q)
+            dq = np.array(dq).flatten()
+            ddq = np.array(ddq).flatten()
+
+            Z[it, :] = np.hstack([np.array(q), dq, ddq])
         return Z
 
 n = 0
