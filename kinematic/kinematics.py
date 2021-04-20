@@ -295,7 +295,7 @@ class kinematic_model:
                     print(t)
                     return Z
 
-            dq = - npl.inv(Phi_q) * self.cal_v(q, t) 
+            dq = npl.inv(Phi_q) * self.cal_v(q, t) 
             q = np.array(q).reshape(n, 1)
             # print(q, dq)
             # print(np.array(dq).flatten())
