@@ -19,6 +19,7 @@ class CFD_base():
     # 返回值
     def solve_return_value():
         '''..'''
+        return None
     def solve(self):
         self.initialize()
         for it in range(self.iterator_time):
