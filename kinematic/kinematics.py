@@ -318,16 +318,16 @@ class kinematic_model:
 class positive_dynamical_problem(kinematic_model):
     def __init__(self):
         return None 
-    def input_from_csv(self):
-        super().input_from_csv()
-        self.status = np.matrix([[0] * 3 * self.n])
+    def read_data_from_csv(self, filename):
+        super().read_data_from_csv(filename)
+        self.status = np.matrix([[0] * 3 * self.n]) # self.status 存储q, q_, q__
     def input_M(self):
         self.M = np.matrix(np.diag([1, 1, 1/12]))
         return None 
     def Qa(self, q, dq, t):
         g = 9.8
         return np.matrix([[0], [-g], [0]])
-    def f(self, t, y):
+    def f(self, t, y): # return dy
         dy = np.matrix([[0]] * 6)
         q = self.y[0:3, 0]
         dq = self.y[3:6, 0] 
@@ -335,15 +335,41 @@ class positive_dynamical_problem(kinematic_model):
         fq = np.matrix(self.cal_fq(q, t, self.constraints) )
         lines2 = fq.shape[0]
         zeros = np.matrix(np.zeros([lines2, lines2]))
-        gamma = np.matrix(self.cal_gamma(q, dq, t) )
-        A = np.vstack([np.hstack([M, fq.T]), np.hstack(fq, zeros)])
+        q = np.array(q).reshape(self.n, 1)
+        gamma = np.matrix(self.cal_gamma(q, np.array(dq).flatten(), t) )
+        A = np.vstack([np.hstack([self.M, fq.T]), np.hstack([fq, zeros])])
         B = np.vstack([Q, gamma])
+        # print(A)
+        # print(B)
         X = npl.inv(A) * B 
         q__, lbd = X[0 : 3, 0], X[3 : 5, 0]
-        return np.hstack(dq, q__)
+        return np.vstack([dq, q__])
     def initial_condition(self):
-        # q: q, q_: q对时间的导数
-        return None 
+        # q: q, q_: q对时间的导数 都是np.matrix
+        q = [0.5, 0, 0]
+        n = len(q)
+        constraints = self.constraints
+        Phi = self.cal_Phi(q, 0, constraints)
+        Phi_q = self.cal_fq(q, 0, constraints)
+        i = 1
+        while npl.norm(self.cal_Phi(q, 0, constraints)) > 1e-6:
+            Phi = self.cal_Phi(q, 0, constraints)
+            Phi_q = self.cal_fq(q, 0, constraints)
+            if abs(npl.det(Phi_q)) < 1e-4:
+                print('Improper initial value')
+                print(Phi_q) 
+                print(npl.det(Phi_q)) 
+            q = np.matrix(np.array(q).reshape([n, 1]))
+            q -= npl.inv(Phi_q) * Phi 
+            q = np.array(q).reshape(n, 1).flatten().tolist()
+            # print('291:', q)
+            i += 1 
+            if i == 100:
+                print('Improper initial value, i >= maxi')
+
+        phi2 = np.vstack([Phi_q, np.matrix([[0, 0, 1]])])
+        dq = npl.inv(phi2) * np.matrix([[0], [0], [0]]) # remain
+        return np.matrix(np.array(q).reshape([n, 1])), dq 
     def initial_y(self):
         return None 
     def step(self, t):
@@ -354,13 +380,12 @@ class positive_dynamical_problem(kinematic_model):
         self.y += 1/6 * (f[0] + 2 * f[1] + 2 * f[2] + f[3]) * self.deltat 
     def solve(self):
         self.input_M()
-        self.initial_condition()
-        self.q = np.matrix([[0]] * 3)
-        self.q_ = np.matrix([[0]] * 3)
+        self.q, self.q_ = self.initial_condition()
         self.y = np.hstack([self.q.T, self.q_.T]).T
         self.deltat = 0.01 
         self.te = 5
         for t in np.arange(0, self.te, self.deltat):
             self.step(t)
-            self.status = np.hstack(self.status, np.hstack([y.T, np.zeros([1, 3])]))
-        return self.status 
+            dy = self.f(t + self.deltat, self.y)
+            self.status = np.vstack([self.status, np.hstack([self.y.T, dy[3:6, 0].T])])
+        return self.status[1:, :] 

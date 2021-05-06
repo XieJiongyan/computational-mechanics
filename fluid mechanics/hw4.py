@@ -61,7 +61,7 @@ if __name__ == '__main__':
     cfd.solve()
     print(cfd.lattice_type) 
     print(np.around(cfd.phi, 2))
-    plt.contour(cfd.phi.T, np.linspace(0.5, 2, 7)) 
+    plt.contour(cfd.phi.T, np.linspace(0, 2, 8)) 
     plt.savefig('fig/CFD/hw4.png')
 
     
