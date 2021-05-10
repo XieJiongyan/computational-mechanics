@@ -268,8 +268,11 @@ class kinematic_model:
         for index, row in self.constraints.iterrows():
             v = np.hstack([v, self.cal_v_row(q, t, row)])
         return np.matrix(v).T
+    # @param ts: 运行时段
     # Return [phi, phi, a]
     def directly_solve(self, ts):
+        if type(ts) != list:
+            print("Wrong input ts, not a list")
         dt = ts[1] - ts[0]
         q = [float(x) for x in self.initial_condition]
         n = len(q)
@@ -322,7 +325,7 @@ class kinematic_model:
 class kinematic_base:
     def __init__(self):
         pass 
-    def read_data_from_csv(self, filename):
+    def read_data_csv(self, filename):
         df = pd.read_csv(filename)
         unique_i = pd.concat([df['i'], df['j']], ignore_index= True)
         self.constraints = df
@@ -334,19 +337,19 @@ class kinematic_base:
         if self.kind == 'ax' or self.kind == 'ay':
             self.c = float(row['c'])
         else:
-            if not np.nan(row['c']):
+            if type(row['c']) == str:
                 self.c = str(row["c"]).replace("pi", "np.pi").replace('^', '**')
-            if not np.nan(row["c'"]):
+            if type(row['c']) == str:
                 self.c_ = str(row["c'"]).replace("pi", "np.pi").replace('^', '**')
-            if not np.nan(row["c''"]):
+            if type(row['c']) == str:
                 self.c__ = str(row["c''"]).replace("pi", "np.pi").replace('^', '**')
 
 
         # get information of i
         self.i = row['i']
-        if not np.isnan(row['si']):
+        if type(row['si']) == str:
             self.si = np.matrix([float(x) for x in row['si'].split(' ')]).T 
-        if not np.isnan(row['vi']):
+        if type(row['vi']) == str:
             self.vi = np.matrix([float(x) for x in row['vi'].split(' ')]).T 
         c = row['c']
 
@@ -368,29 +371,122 @@ class kinematic_base:
             self.phij = self.q[self.j * 3 + 2, 0]
             self.rj = np.matrix([[self.xj], [self.yj]])
     def cal_Phi_row(self, row):
-        if kind == 'aphid':
+        if self.kind == 'aphid':
             return self.phii - eval(self.c)
-        elif kind == 'ax':
+        elif self.kind == 'ax':
             return self.xi + (A(self.phii) * self.si)[0, 0] - self.c
-        elif kind == 'ay':
+        elif self.kind == 'ay':
             return self.yi + (A(self.phii) * self.si)[1, 0] - self.c 
-        elif kind == 'r':
-            Aisi = np.array(As(phii, si))
-            Ajsj = np.array(As(phij, sj))
-            return (rj + Ajsj.T - ri - Aisi.T).flatten()
-        elif kind == 't':
-            vvi = vi.split(' ')
-            vvi = np.matrix([float(x) for x in vvi]).T 
-            Aisi = np.array(As(phii, si))
-            Ajsj = np.array(As(phij, sj))
-            h = np.matrix(rj + Ajsj.T - ri - Aisi.T).T
-            # print(Bs(phii, vi).T, h)
-            phi1 = (Bs(phii, vi).T * h)[0, 0]
-            phi2 = (- vvi.T * Bs(phij - phii, vj))[0, 0]
-            return np.array([phi1, phi2])
+        elif self.kind == 'r':
+            return self.rj + A(self.phij) * self.sj - self.ri - A(self.phii) * self.si 
+        elif self.kind == 't':
+            h = rj + A(self.phij) * sj - ri - A(self.phii) * si 
+            phi1 = (vi.T * B(self.phii).T * h)[0, 0] #scalar
+            phi2 = (-vi.T * B(self.phij - self.phii) * vj)[0, 0]
+            return np.matrix([[phi1], [phi2]])
         else:
             print('Constrant kind unrecognized.')
             return 0
+    def cal_Phi(self):
+        Phi = np.matrix([[0]])
+        for index, row in self.constraints.iterrows():
+            i, j = row['i'], row['j']
+            self.get_values(row)
+            Phi = np.vstack([Phi, self.cal_Phi_row(row)])
+        return Phi[[1,], :] # 返回一个列向量
+    def cal_fq_row(self, row):
+        szq = self.q.shape[0] #scalar
+        Phi_q = 0
+        if self.kind == 'aphid':
+            Phi_q = np.matrix(np.zeros([1, szq]))
+            Phi_q[0, self.i * 3 + 2] = 1
+            return Phi_q 
+        elif self.kind == 'ax':
+            Phi_q = np.matrix(np.zeros([1, szq]))
+            Phi_q[0, self.i * 3] = 1
+            Phi_q[0, self.i * 3 + 2] = (B(self.phii) * self.si)[0, 0]
+        elif self.kind == 'ay':
+            Phi_q = np.matrix(np.zeros([1, szq]))
+            Phi_q[0, self.i * 3 + 1] = 1
+            Phi_q[0, self.i * 3 + 2] = (B(self.phii) * self.si)[1, 0]
+        elif self.kind == 'r':
+            Phi_q = np.matrix(np.zeros([2, szq]))
+            Phi_q[:, [self.i * 3, self.i * 3 + 1]] = np.matrix(-np.identity(2))
+            Phi_q[:, [self.j * 3, self.j * 3 + 1]] = np.matrix(np.identity(2))
+            Phi_q[:, self.i * 3 + 2] = - B(self.phii) * self.si 
+            Phi_q[:, self.j * 3 + 2] = B(self.phij) * self.sj 
+        elif self.kind == 't':
+            Phi_q = np.matrix(np.zeros([2, szq]))
+            Phi_q[0, [self.i * 3, self.i * 3 + 1]] = -self.vi.T * B(self.phii).T
+            Phi_q[1, [self.i * 3, self.i * 3 + 1]] = np.matrix([[0, 0]])
+            Phi_q[0, self.i * 3 + 2] = -self.vi.T * A(self.phii).T * (self.rj -self.ri) - self.vi.T * A(self.phij - self.phii) * self.sj 
+            Phi_q[1, self.i * 3 + 2] = -self.vi.T * A(self.phij - self.phii) * self.vj 
+            Phi_q[0, [self.j * 3, self.j * 3 + 1]] = self.vi.T * B(self.phii).T
+            Phi_q[1, [self.j * 3, self.j * 3 + 1]] = np.matrix([[0, 0]]) 
+            Phi_q[0, self.j * 3 + 2] = self.vi.T * A(self.phij - self.phii) * self.sj  
+            Phi_q[1, self.j * 3 + 2] = self.vi.T * A(self.phij - self.phii) * self.vi 
+        else:
+            print('''kind is wrong''')
+        return Phi_q
+    def cal_fq(self):
+        Phi_q = np.matrix(np.empty((0, self.n)))
+        for index, row in self.constraints.iterrows():
+            self.get_values(row)
+            Phi_q = np.vstack([Phi_q, self.cal_fq_row(row)])
+        return Phi_q
+
+class kinematic(kinematic_base):
+    def __init__(self):
+        super().__init__()
+    def read_initial_csv(self, filename):
+        df = pd.read_csv(filename, header=None)
+        if self.n != 0:
+            self.n = df.shape[0]
+        self.initial_condition = df.values.flatten()
+    # @param ts: 运行时段
+    # Return [phi, phi, a]
+    def solve(self, ts):
+        if type(ts) != list and type(ts) != np.ndarray:
+            print("Wrong input ts, not a list")
+        dt = ts[1] - ts[0]
+        self.q = np.array([float(x) for x in self.initial_condition]).reshape(-1, 1)
+        n = len(self.q)
+        constraints = self.constraints
+        if n != self.n:
+            print('n is wrong')
+        Z = np.matrix(np.zeros([n * 3, ts.shape[0]])) # return value
+        for it, t in enumerate(ts):
+            self.t = t
+            Phi = self.cal_Phi()
+            Phi_q = self.cal_fq()
+            i = 1
+            while npl.norm(self.cal_Phi()) > 1e-6:
+                Phi = self.cal_Phi()
+                Phi_q = self.cal_fq()
+                if abs(npl.det(Phi_q)) < 1e-4:
+                    print('Improper initial value')
+                    print(Phi_q) 
+                    print(npl.det(Phi_q)) 
+                self.q -= npl.inv(Phi_q) * Phi 
+                i += 1 
+                if i == 100:
+                    print('Improper initial value, i >= maxi')
+                    print(t)
+                    return Z
+
+            # dq = npl.inv(Phi_q) * self.cal_v(q, t) 
+            # q = np.array(q).reshape(n, 1)
+            # gamma = self.cal_gamma(q, np.array(dq).flatten(), t)
+            # # print(gamma)
+            # ddq = npl.inv(Phi_q) * gamma
+            # q = np.matrix(q)
+            # q += dq * dt + 0.5 * dt ** 2 * ddq 
+            # q = np.array(q).reshape(n, 1).flatten().tolist()
+            # dq = np.array(dq).flatten()
+            # ddq = np.array(ddq).flatten()
+
+            Z[:, it] = np.vstack([self.q, self.q, self.q])
+        return Z
 
 
 class positive_dynamical_problem(kinematic_model):
