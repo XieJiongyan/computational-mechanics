@@ -45,15 +45,19 @@ class draw:
     def savefig(self, filename):
         plt.savefig(filename)
 
+
+def A(phi):
+    return np.matrix([[math.cos(phi), -math.sin(phi)], [math.sin(phi), math.cos(phi)]]) 
+def R():
+    return np.matrix([[0, -1], [1, 0]]) 
+def B(phi):
+    return R() * A(phi) 
+
 def As(phii, si):
     Ai = np.matrix([[math.cos(phii), -math.sin(phii)], [math.sin(phii), math.cos(phii)]]) 
     si = si.split(' ')
     si = np.matrix([float(x) for x in si]).T 
     return Ai * si #返回列向量
-
-def R():
-    return np.matrix([[0, -1], [1, 0]]) 
-
 def Bs(phii, si):
     return R() * As(phii, si) 
 
@@ -315,6 +319,80 @@ class kinematic_model:
             Z[it, :] = np.hstack([np.array(q), dq, ddq])
         return Z
 
+class kinematic_base:
+    def __init__(self):
+        pass 
+    def read_data_from_csv(self, filename):
+        df = pd.read_csv(filename)
+        unique_i = pd.concat([df['i'], df['j']], ignore_index= True)
+        self.constraints = df
+        self.n = unique_i.value_counts().shape[0] * 3
+    def get_values(self, row):
+        self.kind = row['kind']
+
+        # get c, c', c'', their types are all str.
+        if self.kind == 'ax' or self.kind == 'ay':
+            self.c = float(row['c'])
+        else:
+            if not np.nan(row['c']):
+                self.c = str(row["c"]).replace("pi", "np.pi").replace('^', '**')
+            if not np.nan(row["c'"]):
+                self.c_ = str(row["c'"]).replace("pi", "np.pi").replace('^', '**')
+            if not np.nan(row["c''"]):
+                self.c__ = str(row["c''"]).replace("pi", "np.pi").replace('^', '**')
+
+
+        # get information of i
+        self.i = row['i']
+        if not np.isnan(row['si']):
+            self.si = np.matrix([float(x) for x in row['si'].split(' ')]).T 
+        if not np.isnan(row['vi']):
+            self.vi = np.matrix([float(x) for x in row['vi'].split(' ')]).T 
+        c = row['c']
+
+        self.xi = self.q[self.i * 3, 0] # scalar
+        self.yi = self.q[self.i * 3 + 1, 0] # scalar
+        self.phii = self.q[self.i * 3 + 2, 0] # scalar
+        self.ri = np.matrix([[self.xi], [self.yi]])
+
+        # get information of j
+        self.j = row['j']
+        if not np.isnan(self.j):
+            self.j = int(self.j)
+            if not np.isnan(row['sj']):
+                self.sj = np.matrix([float(x) for x in row['sj'].split(' ')]).T 
+            if not np.isnan(row['vj']):
+                self.vj = np.matrix([float(x) for x in row['vj'].split(' ')]).T 
+            self.xj = self.q[self.j * 3, 0]
+            self.yj = self.q[self.j * 3 + 1, 0]
+            self.phij = self.q[self.j * 3 + 2, 0]
+            self.rj = np.matrix([[self.xj], [self.yj]])
+    def cal_Phi_row(self, row):
+        if kind == 'aphid':
+            return self.phii - eval(self.c)
+        elif kind == 'ax':
+            return self.xi + (A(self.phii) * self.si)[0, 0] - self.c
+        elif kind == 'ay':
+            return self.yi + (A(self.phii) * self.si)[1, 0] - self.c 
+        elif kind == 'r':
+            Aisi = np.array(As(phii, si))
+            Ajsj = np.array(As(phij, sj))
+            return (rj + Ajsj.T - ri - Aisi.T).flatten()
+        elif kind == 't':
+            vvi = vi.split(' ')
+            vvi = np.matrix([float(x) for x in vvi]).T 
+            Aisi = np.array(As(phii, si))
+            Ajsj = np.array(As(phij, sj))
+            h = np.matrix(rj + Ajsj.T - ri - Aisi.T).T
+            # print(Bs(phii, vi).T, h)
+            phi1 = (Bs(phii, vi).T * h)[0, 0]
+            phi2 = (- vvi.T * Bs(phij - phii, vj))[0, 0]
+            return np.array([phi1, phi2])
+        else:
+            print('Constrant kind unrecognized.')
+            return 0
+
+
 class positive_dynamical_problem(kinematic_model):
     def __init__(self):
         return None 
@@ -378,14 +456,21 @@ class positive_dynamical_problem(kinematic_model):
         for i in range(4):
             f[i] = self.f(t + ks[i] * self.deltat, self.y + ks[i] * self.deltat * f[i - 1]) # no bug when i = 0
         self.y += 1/6 * (f[0] + 2 * f[1] + 2 * f[2] + f[3]) * self.deltat 
+        # print(self.y)
     def solve(self):
         self.input_M()
         self.q, self.q_ = self.initial_condition()
         self.y = np.hstack([self.q.T, self.q_.T]).T
-        self.deltat = 0.01 
-        self.te = 5
+        self.deltat = 0.001 
+        self.te = 5 # 结束时间
         for t in np.arange(0, self.te, self.deltat):
             self.step(t)
+            y = self.constraint_stablization(y) 
             dy = self.f(t + self.deltat, self.y)
             self.status = np.vstack([self.status, np.hstack([self.y.T, dy[3:6, 0].T])])
         return self.status[1:, :] 
+    def constraint_stablization(self, y):
+        q = y[0:3, 0] 
+        q_ = y[3:6, 0] 
+        v = np.matrix(np.zeros([2, 1])) 
+

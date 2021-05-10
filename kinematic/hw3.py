@@ -7,8 +7,10 @@ if __name__ == '__main__':
     hw3 = kinematics.positive_dynamical_problem() 
     hw3.read_data_from_csv("kinematic/hw3_constraints.csv")
     status = hw3.solve() 
-    print(status[-1, :]) 
-    print(status[:, 0])
+    # print(status[-1, :]) 
+    # print(status[:, 0])
+    print("r2 in time")
+    print(np.array(status[:, 0]) ** 2 + np.array(status[:, 1]) ** 2)
     sz = status.shape[0] 
     plt.plot(range(sz), status[:, 0])
     plt.plot(range(sz), status[:, 1])
