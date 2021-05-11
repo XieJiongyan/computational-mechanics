@@ -114,6 +114,7 @@ class CFD_MacCormack(CFD_base):
 class CFD_Mac_conservation(CFD_MacCormack):
     def __init__(self, iterator_time=1000, deltaX=0.1):
         super().__init__(iterator_time=iterator_time, deltaX=deltaX)
+        self.Kelang = 0.5
     def initial_condition(self):
         super().initial_condition()
         self.U1 = [0] * self.sz 
@@ -129,27 +130,46 @@ class CFD_Mac_conservation(CFD_MacCormack):
 
     def calculate_step(self, i, x, y):
         U1_t = - (self.F1[x] - self.F1[y]) / self.deltaX
-        U2_t = - (self.F2[x] - self.F2[y]) / self.deltaX
+        U2_t = - (self.F2[x] - self.F2[y]) / self.deltaX + self.J2[i]
         U3_t = - (self.F3[x] - self.F3[y]) / self.deltaX
         return U1_t, U2_t, U3_t
     # @usage self.getF_Ut()
     def getF_Ut(self):
         U1, U2, U3 = self.U1, self.U2, self.U3 
         self.F1 = U2 
-        self.F2 = [U2[i] ** 2 / U1[i] + (self.gamma - 1) / self.gamma * (U3[i] - self.gamma / 2 * (U2[i] / U1[i]) ** 2) for i in range(self.sz)]
+        self.F2 = [U2[i] ** 2 / U1[i] + (self.gamma - 1) / self.gamma * (U3[i] - self.gamma / 2 * (U2[i] ** 2 / U1[i]) ) for i in range(self.sz)]
         self.F3 = [self.gamma * U2[i] * U3[i] / U1[i] - self.gamma * (self.gamma - 1) / 2 * U2[i] ** 3 / U1[i] ** 2 for i in range(self.sz)]
         self.J2 = [1 / self.gamma * self.rhos[i] * self.Ts[i] * (self.As[i + 1] - self.As[i]) / self.deltaX for i in range(self.sz - 1)]
+        self.J2 += [1 / self.gamma * self.rhos[-1] * self.Ts[-1] * (self.As[-1] - self.As[-2]) / self.deltaX]
     def update_origin_variables(self):
         U1, U2, U3 = self.U1, self.U2, self.U3 
         self.rhos = [U1[i] / self.As[i] for i in range(self.sz)]
         self.Vs = [U1[i] / U2[i] for i in range(self.sz)]
         self.Ts = [(self.gamma - 1) * (U3[i] / U1[i] - self.gamma / 2 * (U2[i] / U1[i]) ** 2) for i in range(self.sz)]
         self.ps = [self.rhos[i] * self.Ts[i] for i in range(self.sz)]
+        print("origin variables:")
+        print(self.rhos)
+        print(self.Vs)
+        print(self.Ts)
+        print(self.ps)
     def step(self):
-        deltat = self.step_t()
-        self.getF_Ut()
-        U1_t, U2_t, U3_t = self.forward_difference()
         self.update_origin_variables()
+        deltat = self.step_t()
+        print("delta t:", deltat)
+        self.getF_Ut()
+        print("Original Us")
+        print(self.U1[15], self.U1[16])
+        print(self.U2[15], self.U2[16])
+        print(self.U3[15], self.U3[16])
+        print("original Fs")
+        print(self.F1[15], self.F1[16])
+        print(self.F2[15], self.F2[16])
+        print(self.F3[15], self.F3[16])
+        U1_t, U2_t, U3_t = self.forward_difference()
+        print("original U_t")
+        print(U1_t[15], U1_t[16])
+        print(U2_t[15], U2_t[16])
+        print(U3_t[15], U3_t[16])
 
         # 保存现场的rhos, Vs, Ts, 并更新rhos, Vs, Ts
         U1 = self.U1 
@@ -158,9 +178,24 @@ class CFD_Mac_conservation(CFD_MacCormack):
         self.U1 = [self.U1[i] + U1_t[i] * deltat for i in range(self.sz)] 
         self.U2 = [self.U2[i] + U2_t[i] * deltat for i in range(self.sz)] 
         self.U3 = [self.U3[i] + U3_t[i] * deltat for i in range(self.sz)] 
+        print("1step after Us")
+        print(self.U1[15], self.U1[16])
+        print(self.U2[15], self.U2[16])
+        print(self.U3[15], self.U3[16])
 
+        self.update_origin_variables()
+        print("rho and T")
+        print(self.rhos[15], self.Ts[15])
         self.getF_Ut()
-        U1_t2, U2_t2, U3_t2 = self.forward_difference()
+        print("1step after Fs*********")
+        print(self.F1[15], self.F1[14])
+        print(self.F2[15], self.F2[14])
+        print(self.F3[15], self.F3[14])
+        U1_t2, U2_t2, U3_t2 = self.backward_difference()
+        print("1step U_t")
+        print(U1_t2[15], U1_t2[16])
+        print(U2_t2[15], U2_t2[16])
+        print(U3_t2[15], U3_t2[16])
 
         # 计算时间偏导数的平均值，计算矫正值
         self.U1 = [U1[i] + 0.5 * (U1_t[i] + U1_t2[i]) * deltat for i in range(self.sz)]
