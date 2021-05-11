@@ -323,6 +323,7 @@ class kinematic_model:
         return Z
 
 class kinematic_base:
+    # 在本class中，数字数据只有两种类型：标量(float)，矩阵(np.matrix)
     def __init__(self):
         pass 
     def read_data_csv(self, filename):
@@ -388,12 +389,12 @@ class kinematic_base:
             print('Constrant kind unrecognized.')
             return 0
     def cal_Phi(self):
-        Phi = np.matrix([[0]])
+        Phi = np.matrix(np.empty([0, 1]))
         for index, row in self.constraints.iterrows():
             i, j = row['i'], row['j']
             self.get_values(row)
             Phi = np.vstack([Phi, self.cal_Phi_row(row)])
-        return Phi[[1,], :] # 返回一个列向量
+        return Phi[1::, :] # 返回一个列向量
     def cal_fq_row(self, row):
         szq = self.q.shape[0] #scalar
         Phi_q = 0
@@ -434,6 +435,23 @@ class kinematic_base:
             self.get_values(row)
             Phi_q = np.vstack([Phi_q, self.cal_fq_row(row)])
         return Phi_q
+    def cal_v_row(self, row):
+        if self.kind == 'aphid':
+            c = str(row["c'"]).replace("pi", "np.pi").replace('^', '**')
+            # print(eval(c))
+            return eval(c)
+        elif self.kind == 'r':
+            return np.matrix([[0], [0]])
+        elif self.kind == 't':
+            return np.matrix([[0], [0]])
+        else:
+            return 0
+    def cal_v(self,):
+        v = np.matrix(np.empty([0, 1]))
+        for index, row in self.constraints.iterrows():
+            self.get_values(row)
+            v = np.vstack([v, self.cal_v_row(row)])
+        return v
 
 class kinematic(kinematic_base):
     def __init__(self):

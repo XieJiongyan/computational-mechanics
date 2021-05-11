@@ -15,3 +15,8 @@ if __name__ == '__main__':
     Z1 = k1.solve(ts)
     print(Z1)
 
+    plt.plot(ts, np.array(Z1[0, :]).flatten().tolist())
+    plt.savefig('fig/CKD/x1_new.png')
+    plt.cla()
+
+
