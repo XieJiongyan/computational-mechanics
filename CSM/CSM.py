@@ -112,4 +112,4 @@ class CSM_trass(CSM_base):
             for i in range(self.nf):
                 d = np.vstack([d, self.d[e[1] * self.nf + i, 0]]) 
             inside_F += [Ke * T * d]
-        return self.d, inside_F
+        return self.d, inside_F, self.K * self.d
