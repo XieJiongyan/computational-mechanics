@@ -331,6 +331,9 @@ class kinematic_base:
         unique_i = pd.concat([df['i'], df['j']], ignore_index= True)
         self.constraints = df
         self.n = unique_i.value_counts().shape[0] * 3
+        self.q = np.matrix(np.zeros([self.n, 1])) 
+        self.dq = np.matrix(np.zeros([self.n, 1])) 
+        self.ddq = np.matrix(np.zeros([self.n, 1]))
     def get_values(self, row):
         self.kind = row['kind']
 
@@ -346,6 +349,7 @@ class kinematic_base:
                 self.c__ = str(row["c''"]).replace("pi", "np.pi").replace('^', '**')
 
 
+
         # get information of i
         self.i = row['i']
         if type(row['si']) == str:
@@ -358,6 +362,10 @@ class kinematic_base:
         self.yi = self.q[self.i * 3 + 1, 0] # scalar
         self.phii = self.q[self.i * 3 + 2, 0] # scalar
         self.ri = np.matrix([[self.xi], [self.yi]])
+        self.dxi = self.dq[self.i * 3, 0] # scalar
+        self.dyi = self.dq[self.i * 3 + 1, 0] # scalar 
+        self.dri = np.matrix([[self.dxi], [self.dyi]])
+        self.dphii = self.dq[self.i * 3 + 2, 0] # scalar
 
         # get information of j
         self.j = row['j']
@@ -371,6 +379,10 @@ class kinematic_base:
             self.yj = self.q[self.j * 3 + 1, 0]
             self.phij = self.q[self.j * 3 + 2, 0]
             self.rj = np.matrix([[self.xj], [self.yj]])
+            self.dxj = self.dq[self.j * 3, 0]
+            self.dyj = self.dq[self.j * 3 + 1, 0]
+            self.drj = np.matrix([[self.dxj], [self.dyj]])
+            self.dphij = self.dq[self.j * 3 + 2, 0]
     def cal_Phi_row(self, row):
         if self.kind == 'aphid':
             return self.phii - eval(self.c)
@@ -385,6 +397,8 @@ class kinematic_base:
             phi1 = (vi.T * B(self.phii).T * h)[0, 0] #scalar
             phi2 = (-vi.T * B(self.phij - self.phii) * vj)[0, 0]
             return np.matrix([[phi1], [phi2]])
+        elif self.kind == 'aphi':
+            return self.phii - self.c
         else:
             print('Constrant kind unrecognized.')
             return 0
@@ -394,7 +408,7 @@ class kinematic_base:
             i, j = row['i'], row['j']
             self.get_values(row)
             Phi = np.vstack([Phi, self.cal_Phi_row(row)])
-        return Phi[1::, :] # 返回一个列向量
+        return Phi # 返回一个列向量
     def cal_fq_row(self, row):
         szq = self.q.shape[0] #scalar
         Phi_q = 0
@@ -426,6 +440,9 @@ class kinematic_base:
             Phi_q[1, [self.j * 3, self.j * 3 + 1]] = np.matrix([[0, 0]]) 
             Phi_q[0, self.j * 3 + 2] = self.vi.T * A(self.phij - self.phii) * self.sj  
             Phi_q[1, self.j * 3 + 2] = self.vi.T * A(self.phij - self.phii) * self.vi 
+        elif self.kind == 'aphi':
+            Phi_q = np.matrix(np.zeros([1, szq]))
+            Phi_q[0, self.i * 3 + 2] = 1
         else:
             print('''kind is wrong''')
         return Phi_q
@@ -437,9 +454,7 @@ class kinematic_base:
         return Phi_q
     def cal_v_row(self, row):
         if self.kind == 'aphid':
-            c = str(row["c'"]).replace("pi", "np.pi").replace('^', '**')
-            # print(eval(c))
-            return eval(c)
+            return eval(self.c_)
         elif self.kind == 'r':
             return np.matrix([[0], [0]])
         elif self.kind == 't':
@@ -452,6 +467,29 @@ class kinematic_base:
             self.get_values(row)
             v = np.vstack([v, self.cal_v_row(row)])
         return v
+    def cal_gamma_row(self, row):
+        if self.kind == 'aphid':
+            return eval(self.c__)
+        elif self.kind == 'ax':
+            return (A(self.phii) * self.si * self.dphii ** 2)[0, 0]
+        elif self.kind == 'ay':
+            return (A(self.phii) * self.si * self.dphii ** 2)[1, 0]
+        elif self.kind == 'r':
+            return A(self.phij) * self.sj * self.dphij ** 2 - A(self.phii) * self.si * self.dphii ** 2
+        elif self.kind == 't':
+            t1 = (self.dphii ** 2 * self.vi.T * B(self.phii).T * (self.rj - self.ri) + 2 * self.dphii * self.vi.T * A(self.phii).T * (self.drj - self.dri))[0, 0] 
+            return np.matrix([[t1], [0]])
+        elif self.kind == 'aphi':
+            return 0
+        else:
+            print("Unknown kind to calculate gamma")
+            return 0
+    def cal_gamma(self):
+        gamma = np.matrix(np.empty([0, 1]))
+        for index, row in self.constraints.iterrows():
+            self.get_values(row)
+            gamma = np.vstack([gamma, self.cal_gamma_row(row)])
+        return gamma # 返回列向量
 
 class kinematic(kinematic_base):
     def __init__(self):
@@ -492,99 +530,75 @@ class kinematic(kinematic_base):
                     print(t)
                     return Z
 
-            # dq = npl.inv(Phi_q) * self.cal_v(q, t) 
-            # q = np.array(q).reshape(n, 1)
-            # gamma = self.cal_gamma(q, np.array(dq).flatten(), t)
-            # # print(gamma)
-            # ddq = npl.inv(Phi_q) * gamma
-            # q = np.matrix(q)
-            # q += dq * dt + 0.5 * dt ** 2 * ddq 
-            # q = np.array(q).reshape(n, 1).flatten().tolist()
-            # dq = np.array(dq).flatten()
-            # ddq = np.array(ddq).flatten()
+            self.dq = npl.inv(Phi_q) * self.cal_v() 
+            gamma = self.cal_gamma()
+            self.ddq = npl.inv(Phi_q) * gamma
+            self.q += self.dq * dt + 0.5 * dt ** 2 * self.ddq 
 
-            Z[:, it] = np.vstack([self.q, self.q, self.q])
+            Z[:, it] = np.vstack([self.q, self.dq, self.ddq])
         return Z
 
 
-class positive_dynamical_problem(kinematic_model):
+class positive_dynamical_problem(kinematic_base):
     def __init__(self):
         return None 
-    def read_data_from_csv(self, filename):
-        super().read_data_from_csv(filename)
-        self.status = np.matrix([[0] * 3 * self.n]) # self.status 存储q, q_, q__
     def input_M(self):
         self.M = np.matrix(np.diag([1, 1, 1/12]))
         return None 
-    def Qa(self, q, dq, t):
+    def input_t(self):
+        self.deltat = 0.001 
+        self.te = 5 # 结束时间
+    def cal_QA(self):
         g = 9.8
         return np.matrix([[0], [-g], [0]])
     def f(self, t, y): # return dy
         dy = np.matrix([[0]] * 6)
-        q = self.y[0:3, 0]
-        dq = self.y[3:6, 0] 
-        Q = self.Qa(q, dq, t)
-        fq = np.matrix(self.cal_fq(q, t, self.constraints) )
+        self.q = self.y[0:self.n, 0]
+        self.dq = self.y[self.n:self.n, 0] 
+        QA = self.cal_QA()
+
+        fq = self.cal_fq()
+        gamma = self.cal_gamma()
+
         lines2 = fq.shape[0]
         zeros = np.matrix(np.zeros([lines2, lines2]))
-        q = np.array(q).reshape(self.n, 1)
-        gamma = np.matrix(self.cal_gamma(q, np.array(dq).flatten(), t) )
         A = np.vstack([np.hstack([self.M, fq.T]), np.hstack([fq, zeros])])
-        B = np.vstack([Q, gamma])
-        # print(A)
-        # print(B)
-        X = npl.inv(A) * B 
-        q__, lbd = X[0 : 3, 0], X[3 : 5, 0]
-        return np.vstack([dq, q__])
-    def initial_condition(self):
-        # q: q, q_: q对时间的导数 都是np.matrix
-        q = [0.5, 0, 0]
-        n = len(q)
-        constraints = self.constraints
-        Phi = self.cal_Phi(q, 0, constraints)
-        Phi_q = self.cal_fq(q, 0, constraints)
-        i = 1
-        while npl.norm(self.cal_Phi(q, 0, constraints)) > 1e-6:
-            Phi = self.cal_Phi(q, 0, constraints)
-            Phi_q = self.cal_fq(q, 0, constraints)
-            if abs(npl.det(Phi_q)) < 1e-4:
-                print('Improper initial value')
-                print(Phi_q) 
-                print(npl.det(Phi_q)) 
-            q = np.matrix(np.array(q).reshape([n, 1]))
-            q -= npl.inv(Phi_q) * Phi 
-            q = np.array(q).reshape(n, 1).flatten().tolist()
-            # print('291:', q)
-            i += 1 
-            if i == 100:
-                print('Improper initial value, i >= maxi')
+        B = np.vstack([QA, gamma])
 
-        phi2 = np.vstack([Phi_q, np.matrix([[0, 0, 1]])])
-        dq = npl.inv(phi2) * np.matrix([[0], [0], [0]]) # remain
-        return np.matrix(np.array(q).reshape([n, 1])), dq 
+        X = npl.inv(A) * B 
+        q__, lbd = X[0 : self.n, 0], X[self.n:, 0]
+
+        f = np.vstack([self.dq, q__])
+        dy = f
+
+        return f, lbd
+    def initial_condition(self):
+        # q: q, dq: q对时间的导数 都是np.matrix
+        q = np.matrix([[0.5], [0], [0]])
+        dq = np.matrix([[0], [0], [0]])
+        return q, dq 
     def initial_y(self):
         return None 
     def step(self, t):
         f = [0] * 4
         ks = [0, 0.5, 0.5, 1]
         for i in range(4):
-            f[i] = self.f(t + ks[i] * self.deltat, self.y + ks[i] * self.deltat * f[i - 1]) # no bug when i = 0
+            f[i], _ = self.f(t + ks[i] * self.deltat, self.y + ks[i] * self.deltat * f[i - 1]) # no bug when i = 0
         self.y += 1/6 * (f[0] + 2 * f[1] + 2 * f[2] + f[3]) * self.deltat 
-        # print(self.y)
     def solve(self):
         self.input_M()
-        self.q, self.q_ = self.initial_condition()
-        self.y = np.hstack([self.q.T, self.q_.T]).T
-        self.deltat = 0.001 
-        self.te = 5 # 结束时间
+        self.input_t()
+        self.q, self.dq = self.initial_condition()
+        self.y = np.vstack([self.q, self.dq]) 
+        self.status = np.matrix(np.empty([self.n * 3, 0]))
         for t in np.arange(0, self.te, self.deltat):
             self.step(t)
-            y = self.constraint_stablization(y) 
-            dy = self.f(t + self.deltat, self.y)
-            self.status = np.vstack([self.status, np.hstack([self.y.T, dy[3:6, 0].T])])
-        return self.status[1:, :] 
-    def constraint_stablization(self, y):
-        q = y[0:3, 0] 
-        q_ = y[3:6, 0] 
-        v = np.matrix(np.zeros([2, 1])) 
-
+            self.constraint_stablization() 
+            dy, _ = self.f(t + self.deltat, self.y)
+            self.status = np.hstack([self.status, np.vstack([self.y, dy[self.n:self.n * 2, 0]])])
+        return self.status 
+    def constraint_stablization(self):
+        Phiq = self.cal_fq()
+        Phi = self.cal_Phi()
+        self.y[0:self.n, 0] -= Phiq.T * npl.inv(Phiq * Phiq.T) * Phi
+        
