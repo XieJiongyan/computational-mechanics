@@ -147,29 +147,24 @@ class CFD_Mac_conservation(CFD_MacCormack):
         self.Vs = [U1[i] / U2[i] for i in range(self.sz)]
         self.Ts = [(self.gamma - 1) * (U3[i] / U1[i] - self.gamma / 2 * (U2[i] / U1[i]) ** 2) for i in range(self.sz)]
         self.ps = [self.rhos[i] * self.Ts[i] for i in range(self.sz)]
-        print("origin variables:")
-        print(self.rhos)
-        print(self.Vs)
-        print(self.Ts)
-        print(self.ps)
     def step(self):
         self.update_origin_variables()
         deltat = self.step_t()
         print("delta t:", deltat)
         self.getF_Ut()
         print("Original Us")
-        print(self.U1[15], self.U1[16])
-        print(self.U2[15], self.U2[16])
-        print(self.U3[15], self.U3[16])
+        print(self.U1)
+        print(self.U2)
+        print(self.U3)
         print("original Fs")
-        print(self.F1[15], self.F1[16])
-        print(self.F2[15], self.F2[16])
-        print(self.F3[15], self.F3[16])
+        print(self.F1)
+        print(self.F2)
+        print(self.F3)
         U1_t, U2_t, U3_t = self.forward_difference()
-        print("original U_t")
-        print(U1_t[15], U1_t[16])
-        print(U2_t[15], U2_t[16])
-        print(U3_t[15], U3_t[16])
+        print("pre_dUs")
+        print(U1_t)
+        print(U2_t)
+        print(U3_t)
 
         # 保存现场的rhos, Vs, Ts, 并更新rhos, Vs, Ts
         U1 = self.U1 
@@ -178,10 +173,10 @@ class CFD_Mac_conservation(CFD_MacCormack):
         self.U1 = [self.U1[i] + U1_t[i] * deltat for i in range(self.sz)] 
         self.U2 = [self.U2[i] + U2_t[i] * deltat for i in range(self.sz)] 
         self.U3 = [self.U3[i] + U3_t[i] * deltat for i in range(self.sz)] 
-        print("1step after Us")
-        print(self.U1[15], self.U1[16])
-        print(self.U2[15], self.U2[16])
-        print(self.U3[15], self.U3[16])
+        print("pre_Us")
+        print(self.U1)
+        print(self.U2) 
+        print(self.U3)
 
         self.update_origin_variables()
         print("rho and T")
