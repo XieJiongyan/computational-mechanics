@@ -552,9 +552,11 @@ class positive_dynamical_problem(kinematic_base):
         g = 9.8
         return np.matrix([[0], [-g], [0]])
     def f(self, t, y): # return dy
+        self.t = t 
+        self.y = y
         dy = np.matrix([[0]] * 6)
         self.q = self.y[0:self.n, 0]
-        self.dq = self.y[self.n:self.n, 0] 
+        self.dq = self.y[self.n:self.n * 2, 0] 
         QA = self.cal_QA()
 
         fq = self.cal_fq()
@@ -582,9 +584,13 @@ class positive_dynamical_problem(kinematic_base):
     def step(self, t):
         f = [0] * 4
         ks = [0, 0.5, 0.5, 1]
+
+        origin_t = self.t 
+        origin_y = self.y
         for i in range(4):
-            f[i], _ = self.f(t + ks[i] * self.deltat, self.y + ks[i] * self.deltat * f[i - 1]) # no bug when i = 0
-        self.y += 1/6 * (f[0] + 2 * f[1] + 2 * f[2] + f[3]) * self.deltat 
+            f[i], _ = self.f(origin_t + ks[i] * self.deltat, origin_y + ks[i] * self.deltat * f[i - 1]) # no bug when i = 0
+        self.y = origin_y + 1/6 * (f[0] + 2 * f[1] + 2 * f[2] + f[3]) * self.deltat 
+        self.t = origin_t
     def solve(self):
         self.input_M()
         self.input_t()
@@ -592,6 +598,7 @@ class positive_dynamical_problem(kinematic_base):
         self.y = np.vstack([self.q, self.dq]) 
         self.status = np.matrix(np.empty([self.n * 3, 0]))
         for t in np.arange(0, self.te, self.deltat):
+            self.t = t
             self.step(t)
             self.constraint_stablization() 
             dy, _ = self.f(t + self.deltat, self.y)
