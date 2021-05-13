@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 
 if __name__ == '__main__':
-    deltat = 0.005
+    deltat = 0.01
     te = 1.5
     ts = np.arange(0, te, deltat)
 
@@ -27,19 +27,23 @@ if __name__ == '__main__':
                 F = - 282857 / (6 - x3) + 62857 
             else:
                 F = -110000 * (1 - math.sin(2 * 3.1415926 * (x3 - 5.25)))
-            return np.matrix([[0], [-200 * g], [0], [0], [-35 * g], [0], [F], [-25 * g], [0]])
-        # !!!!!!!!!!!!!!!!!!!!!!!!
+            return np.matrix([[0], [-200 * g], [41450], [0], [-35 * g], [0], [F], [-25 * g], [0]])
         def initial_condition(self):
             # q: q, dq: q对时间的导数 都是np.matrix
-            q = np.matrix([[0.5], [0], [0]])
-            dq = np.matrix([[0], [0], [0]])
+            q = np.matrix([[0], [1], [np.pi], [1.435], [1], [-0.608], [2.47], [0], [0]])
+            dq = np.matrix([[-30], [0], [30], [-60], [0], [0], [-60], [0], [0]])
             return q, dq 
 
     k1 = K()
     k1.read_data_csv("kinematic/input/Bighw2_1_constraints.csv")
     Z1 = k1.solve()
+    print(Z1[0, :])
 
-    plt.plot(ts, np.array(Z1[0, :]).flatten())
-    plt.savefig('fig/CKD/x1_new.png')
+    plt.plot(ts, np.array(Z1[2, :]).flatten())
+    plt.savefig('fig/CKD/Bighw2_1_phi.png')
+    plt.cla()
+
+    plt.plot(ts, np.array(Z1[9 + 2, :]).flatten())
+    plt.savefig('fig/CKD/Bighw2_1_omega.png')
     plt.cla()
 

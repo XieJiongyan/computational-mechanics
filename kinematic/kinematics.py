@@ -371,9 +371,9 @@ class kinematic_base:
         self.j = row['j']
         if not np.isnan(self.j):
             self.j = int(self.j)
-            if not np.isnan(row['sj']):
+            if type(row['sj']) == str:
                 self.sj = np.matrix([float(x) for x in row['sj'].split(' ')]).T 
-            if not np.isnan(row['vj']):
+            if type(row['vj']) == str:
                 self.vj = np.matrix([float(x) for x in row['vj'].split(' ')]).T 
             self.xj = self.q[self.j * 3, 0]
             self.yj = self.q[self.j * 3 + 1, 0]

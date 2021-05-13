@@ -23,7 +23,7 @@ if __name__ == '__main__':
     # print(Z1[:, [49, 50, 51]])
 
     plt.plot(ts, np.array(Z1[0, :]).flatten())
-    plt.savefig('fig/CKD/x1_new.png')
+    plt.savefig('fig/CKD/x_pendulum.png')
     plt.cla()
 
     plt.plot(ts, np.array(Z1[3, :]).flatten())
