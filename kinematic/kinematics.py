@@ -4,6 +4,7 @@ import numpy.linalg as npl
 import math 
 import matplotlib.pyplot as plt 
 from matplotlib import patches
+from abc import ABC, abstractmethod
 
 class draw:
     def __init__(self):
@@ -322,7 +323,7 @@ class kinematic_model:
             Z[it, :] = np.hstack([np.array(q), dq, ddq])
         return Z
 
-class kinematic_base:
+class kinematic_base(ABC):
     # 在本class中，数字数据只有两种类型：标量(float)，矩阵(np.matrix)
     def __init__(self):
         pass 
@@ -542,15 +543,20 @@ class kinematic(kinematic_base):
 class positive_dynamical_problem(kinematic_base):
     def __init__(self):
         return None 
+    @abstractmethod
     def input_M(self):
-        self.M = np.matrix(np.diag([1, 1, 1/12]))
-        return None 
+        pass
+    @abstractmethod 
     def input_t(self):
-        self.deltat = 0.001 
-        self.te = 5 # 结束时间
+        pass
+    @abstractmethod
     def cal_QA(self):
-        g = 9.8
-        return np.matrix([[0], [-g], [0]])
+        pass
+        return np.matrix(np.empty())
+    @abstractmethod 
+    def initial_condition(self):
+        return q, dq 
+
     def f(self, t, y): # return dy
         self.t = t 
         self.y = y
@@ -574,13 +580,6 @@ class positive_dynamical_problem(kinematic_base):
         dy = f
 
         return f, lbd
-    def initial_condition(self):
-        # q: q, dq: q对时间的导数 都是np.matrix
-        q = np.matrix([[0.5], [0], [0]])
-        dq = np.matrix([[0], [0], [0]])
-        return q, dq 
-    def initial_y(self):
-        return None 
     def step(self, t):
         f = [0] * 4
         ks = [0, 0.5, 0.5, 1]

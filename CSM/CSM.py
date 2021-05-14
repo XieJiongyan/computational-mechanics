@@ -40,7 +40,6 @@ class CSM_trass(CSM_base):
         self.Cs = [] 
         for i in range(self.nC):
             self.Cs += [self.r_line()] # node, direction(start from 0)
-
     def solve(self):
         self.K = np.matrix(np.zeros([self.nn * self.nf, self.nn * self.nf]))
         self.base_dir = [] 
@@ -83,9 +82,6 @@ class CSM_trass(CSM_base):
                 free_Ks[C[0] * self.nf + C[1], i] = False
         K = self.K[free_Ks].reshape(self.nf * self.nn - self.nC, self.nf * self.nn - self.nC)
         F = self.F[free_nodes] 
-        # print(self.K)
-        # print(K) 
-        # print(F) 
         d_ = npl.inv(K) * F # 位移
         id = 0 
         self.d = np.matrix(np.empty([0, 1])) 
